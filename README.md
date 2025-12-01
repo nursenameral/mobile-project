@@ -1,59 +1,552 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 📱 Fiş Yönetim Sistemi API Dokümantasyonu
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Bu dokümantasyon Laravel backend ve React Native frontend arasındaki API iletişimini detaylı olarak açıklar.
 
-## About Laravel
+**Base URL:** `http://10.0.2.2:8000/api`
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 🔐 Kimlik Doğrulama (Authentication)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### 1. Kayıt Ol (Register)
 
-## Learning Laravel
+**Endpoint:** `POST /register`
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+**İstek Gövdesi:**
+```json
+{
+  "name": "Ahmet Yılmaz",
+  "email": "ahmet@example.com",
+  "password": "12345678",
+  "password_confirmation": "12345678"
+}
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "message": "Kullanıcı başarıyla oluşturuldu",
+  "data": {
+    "user": {
+      "id": 1,
+      "name": "Ahmet Yılmaz",
+      "email": "ahmet@example.com",
+      "created_at": "2025-11-30T10:15:30.000000Z",
+      "updated_at": "2025-11-30T10:15:30.000000Z"
+    },
+    "token": "1|abcdefghijklmnopqrstuvwxyz123456789"
+  }
+}
+```
 
-## Laravel Sponsors
+---
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### 2. Giriş Yap (Login)
 
-### Premium Partners
+**Endpoint:** `POST /login`
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+**İstek Gövdesi:**
+```json
+{
+  "email": "ahmet@example.com",
+  "password": "12345678"
+}
+```
 
-## Contributing
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "message": "Giriş başarılı",
+  "data": {
+    "user": {
+      "id": 1,
+      "name": "Ahmet Yılmaz",
+      "email": "ahmet@example.com",
+      "created_at": "2025-11-30T10:15:30.000000Z",
+      "updated_at": "2025-11-30T10:15:30.000000Z"
+    },
+    "token": "2|zyxwvutsrqponmlkjihgfedcba987654321"
+  }
+}
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+**Hata Yanıtı (401):**
+```json
+{
+  "success": false,
+  "message": "Email veya şifre hatalı"
+}
+```
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 3. Kullanıcı Bilgisi (Get Current User)
 
-## Security Vulnerabilities
+**Endpoint:** `GET /me`
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+**Headers:**
+```
+Authorization: Bearer 2|zyxwvutsrqponmlkjihgfedcba987654321
+```
 
-## License
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": 1,
+      "name": "Ahmet Yılmaz",
+      "email": "ahmet@example.com",
+      "created_at": "2025-11-30T10:15:30.000000Z",
+      "updated_at": "2025-11-30T10:15:30.000000Z"
+    }
+  }
+}
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+### 4. Çıkış Yap (Logout)
+
+**Endpoint:** `POST /logout`
+
+**Headers:**
+```
+Authorization: Bearer 2|zyxwvutsrqponmlkjihgfedcba987654321
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "message": "Çıkış yapıldı"
+}
+```
+
+---
+
+## 📝 Fiş İşlemleri (Receipt Operations)
+
+**Not:** Tüm fiş işlemleri `auth:sanctum` middleware ile korunur. Her istekte `Authorization: Bearer {token}` header'ı gönderilmelidir.
+
+---
+
+### 5. Fiş Ekle (Create Receipt)
+
+**Endpoint:** `POST /receipts`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**İstek Gövdesi:**
+```json
+{
+  "baslik": "Migros Alışverişi",
+  "tutar": 250.50,
+  "tur": "gıda",
+  "tarih": "2025-11-30",
+  "saat": "14:30:00"
+}
+```
+
+**Validasyon Kuralları:**
+- `baslik`: Zorunlu, string, max 255 karakter
+- `tutar`: Zorunlu, numeric, min 0
+- `tur`: Zorunlu, enum (gıda, sağlık, ulaşım, fatura, eğlence, giyim, diğer)
+- `tarih`: Zorunlu, date format (Y-m-d)
+- `saat`: Zorunlu, time format (H:i:s)
+
+**Başarılı Yanıt (201):**
+```json
+{
+  "success": true,
+  "message": "Fiş başarıyla oluşturuldu",
+  "data": {
+    "receipt": {
+      "id": 1,
+      "user_id": 1,
+      "baslik": "Migros Alışverişi",
+      "tutar": "250.50",
+      "tur": "gıda",
+      "tarih": "2025-11-30",
+      "saat": "14:30:00",
+      "created_at": "2025-11-30T14:35:22.000000Z",
+      "updated_at": "2025-11-30T14:35:22.000000Z"
+    }
+  }
+}
+```
+
+---
+
+### 6. Fişleri Listele (Get All Receipts)
+
+**Endpoint:** `GET /receipts`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Query Parametreleri (Opsiyonel):**
+- `tur`: Kategori filtresi (gıda, sağlık, ulaşım, fatura, eğlence, giyim, diğer)
+- `baslangic_tarih`: Başlangıç tarihi (Y-m-d)
+- `bitis_tarih`: Bitiş tarihi (Y-m-d)
+
+**Örnek İstekler:**
+```
+GET /receipts
+GET /receipts?tur=gıda
+GET /receipts?baslangic_tarih=2025-11-01&bitis_tarih=2025-11-30
+GET /receipts?tur=ulaşım&baslangic_tarih=2025-11-15&bitis_tarih=2025-11-30
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "receipts": [
+      {
+        "id": 1,
+        "user_id": 1,
+        "baslik": "Migros Alışverişi",
+        "tutar": "250.50",
+        "tur": "gıda",
+        "tarih": "2025-11-30",
+        "saat": "14:30:00",
+        "created_at": "2025-11-30T14:35:22.000000Z",
+        "updated_at": "2025-11-30T14:35:22.000000Z"
+      },
+      {
+        "id": 2,
+        "user_id": 1,
+        "baslik": "Eczane",
+        "tutar": "180.00",
+        "tur": "sağlık",
+        "tarih": "2025-11-29",
+        "saat": "10:15:00",
+        "created_at": "2025-11-29T10:20:15.000000Z",
+        "updated_at": "2025-11-29T10:20:15.000000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 7. Tek Fiş Getir (Get Single Receipt)
+
+**Endpoint:** `GET /receipts/{id}`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "receipt": {
+      "id": 1,
+      "user_id": 1,
+      "baslik": "Migros Alışverişi",
+      "tutar": "250.50",
+      "tur": "gıda",
+      "tarih": "2025-11-30",
+      "saat": "14:30:00",
+      "created_at": "2025-11-30T14:35:22.000000Z",
+      "updated_at": "2025-11-30T14:35:22.000000Z"
+    }
+  }
+}
+```
+
+**Hata Yanıtı (404):**
+```json
+{
+  "success": false,
+  "message": "Fiş bulunamadı"
+}
+```
+
+---
+
+### 8. Fiş Güncelle (Update Receipt)
+
+**Endpoint:** `PUT /receipts/{id}`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**İstek Gövdesi:**
+```json
+{
+  "baslik": "Carrefour Alışverişi",
+  "tutar": 320.75,
+  "tur": "gıda",
+  "tarih": "2025-11-30",
+  "saat": "15:00:00"
+}
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "message": "Fiş başarıyla güncellendi",
+  "data": {
+    "receipt": {
+      "id": 1,
+      "user_id": 1,
+      "baslik": "Carrefour Alışverişi",
+      "tutar": "320.75",
+      "tur": "gıda",
+      "tarih": "2025-11-30",
+      "saat": "15:00:00",
+      "created_at": "2025-11-30T14:35:22.000000Z",
+      "updated_at": "2025-11-30T15:05:10.000000Z"
+    }
+  }
+}
+```
+
+---
+
+### 9. Fiş Sil (Delete Receipt)
+
+**Endpoint:** `DELETE /receipts/{id}`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "message": "Fiş başarıyla silindi"
+}
+```
+
+**Hata Yanıtı (404):**
+```json
+{
+  "success": false,
+  "message": "Fiş bulunamadı"
+}
+```
+
+---
+
+### 10. Özet Rapor (Summary Report)
+
+**Endpoint:** `GET /receipts/summary`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Query Parametreleri:**
+- `period`: Dönem seçimi (haftalık, aylık, yıllık) - **Zorunlu**
+
+**Örnek İstekler:**
+```
+GET /receipts/summary?period=haftalık   (Son 7 gün)
+GET /receipts/summary?period=aylık      (Son 30 gün)
+GET /receipts/summary?period=yıllık     (Son 365 gün)
+```
+
+**Başarılı Yanıt (200) - Haftalık Örneği:**
+```json
+{
+  "success": true,
+  "data": {
+    "period": "haftalık",
+    "toplam_tutar": 1250.75,
+    "toplam_fis": 8,
+    "tur_ozeti": [
+      {
+        "tur": "gıda",
+        "toplam_tutar": 580.50,
+        "fis_sayisi": 3,
+        "yuzde": 46.40
+      },
+      {
+        "tur": "ulaşım",
+        "toplam_tutar": 350.00,
+        "fis_sayisi": 2,
+        "yuzde": 27.99
+      },
+      {
+        "tur": "sağlık",
+        "toplam_tutar": 180.00,
+        "fis_sayisi": 1,
+        "yuzde": 14.39
+      },
+      {
+        "tur": "eğlence",
+        "toplam_tutar": 140.25,
+        "fis_sayisi": 2,
+        "yuzde": 11.22
+      }
+    ]
+  }
+}
+```
+
+**Açıklama:**
+- `toplam_tutar`: Seçilen dönemdeki toplam harcama
+- `toplam_fis`: Seçilen dönemdeki toplam fiş sayısı
+- `tur_ozeti`: Her kategorinin detaylı özeti
+  - `tur`: Kategori adı
+  - `toplam_tutar`: Kategoriye ait toplam harcama
+  - `fis_sayisi`: Kategoriye ait fiş sayısı
+  - `yuzde`: Toplam harcamaya göre yüzdelik dilim
+
+---
+
+## 📋 Kategori Listesi
+
+Sistemde kullanılabilecek fiş kategorileri:
+
+| Kategori | Icon | Açıklama |
+|----------|------|----------|
+| `gıda` | 🍔 | Yiyecek ve içecek harcamaları |
+| `sağlık` | 💊 | Sağlık, ilaç, hastane |
+| `ulaşım` | 🚗 | Ulaşım, yakıt, otopark |
+| `fatura` | 📄 | Elektrik, su, internet vb. |
+| `eğlence` | 🎉 | Eğlence, hobi, sosyal |
+| `giyim` | 👕 | Giyim, ayakkabı, aksesuar |
+| `diğer` | 📦 | Diğer harcamalar |
+
+---
+
+## 🔒 Güvenlik ve Yetkilendirme
+
+### Token Yönetimi
+- Başarılı kayıt veya giriş sonrası `token` döner
+- Token, `AsyncStorage` ile mobil uygulama tarafında saklanır
+- Her korumalı endpoint isteğinde `Authorization: Bearer {token}` header'ı gönderilir
+
+### Middleware Koruması
+- `/register` ve `/login` hariç tüm endpoint'ler `auth:sanctum` middleware ile korunur
+- Geçersiz veya eksik token durumunda `401 Unauthorized` hatası döner
+
+### Kullanıcı İzolasyonu
+- Her kullanıcı sadece kendi fişlerini görebilir ve yönetebilir
+- Fiş listeleme ve özet raporlar otomatik olarak giriş yapan kullanıcıya göre filtrelenir
+
+---
+
+## ⚠️ Hata Kodları
+
+| HTTP Kod | Açıklama |
+|----------|----------|
+| 200 | Başarılı işlem |
+| 201 | Kaynak başarıyla oluşturuldu |
+| 400 | Hatalı istek (Validation hatası) |
+| 401 | Yetkisiz erişim (Token geçersiz/eksik) |
+| 404 | Kaynak bulunamadı |
+| 500 | Sunucu hatası |
+
+---
+
+## 🚀 Örnek Kullanım Senaryosu
+
+### 1. Kullanıcı Kaydı ve Giriş
+```
+POST /api/register
+→ Token al ve AsyncStorage'a kaydet
+
+POST /api/login
+→ Token al ve AsyncStorage'a kaydet
+```
+
+### 2. Yeni Fiş Ekleme
+```
+POST /api/receipts
+Authorization: Bearer {token}
+{
+  "baslik": "Market",
+  "tutar": 150.00,
+  "tur": "gıda",
+  "tarih": "2025-11-30",
+  "saat": "18:30:00"
+}
+```
+
+### 3. Fişleri Görüntüleme
+```
+GET /api/receipts
+Authorization: Bearer {token}
+→ Tüm fişleri listele
+
+GET /api/receipts?tur=gıda
+Authorization: Bearer {token}
+→ Sadece gıda kategorisindeki fişleri listele
+```
+
+### 4. Haftalık Özet Görüntüleme
+```
+GET /api/receipts/summary?period=haftalık
+Authorization: Bearer {token}
+→ Son 7 günün harcama özetini al
+```
+
+### 5. Çıkış
+```
+POST /api/logout
+Authorization: Bearer {token}
+→ Token'ı geçersiz kıl ve AsyncStorage'dan temizle
+```
+
+---
+
+## 📱 Frontend Entegrasyonu
+
+**API Service Dosyası:** `frontend/src/services/api.ts`
+
+Tüm API çağrıları bu serviste merkezi olarak yönetilir:
+- `register()` - Kayıt
+- `login()` - Giriş
+- `logout()` - Çıkış
+- `getMe()` - Kullanıcı bilgisi
+- `createReceipt()` - Fiş ekle
+- `getReceipts()` - Fişleri listele
+- `getReceipt()` - Tek fiş getir
+- `updateReceipt()` - Fiş güncelle
+- `deleteReceipt()` - Fiş sil
+- `getSummary()` - Özet rapor
+
+---
+
+## 🛠️ Backend Yapısı
+
+**Laravel Version:** 11.x  
+**Authentication:** Laravel Sanctum  
+**Database:** MySQL
+
+**Ana Dosyalar:**
+- `routes/api.php` - API route tanımları
+- `app/Http/Controllers/AuthController.php` - Kimlik doğrulama
+- `app/Http/Controllers/ReceiptController.php` - Fiş işlemleri
+- `app/Models/Receipt.php` - Receipt modeli
+- `database/migrations/2025_11_29_170310_create_receipts_table.php` - Veritabanı şeması
+
+---
+
