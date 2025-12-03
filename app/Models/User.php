@@ -55,4 +55,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Receipt::class);
     }
+
+    /**
+     * Kullanıcının faturaları
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
 }

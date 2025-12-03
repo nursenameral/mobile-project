@@ -1,4 +1,4 @@
-# 📱 Fiş Yönetim Sistemi API Dokümantasyonu
+# 📱 Fiş ve Fatura Yönetim Sistemi API Dokümantasyonu
 
 Bu dokümantasyon Laravel backend ve React Native frontend arasındaki API iletişimini detaylı olarak açıklar.
 
@@ -158,7 +158,7 @@ Content-Type: application/json
 **Validasyon Kuralları:**
 - `baslik`: Zorunlu, string, max 255 karakter
 - `tutar`: Zorunlu, numeric, min 0
-- `tur`: Zorunlu, enum (gıda, sağlık, ulaşım, fatura, eğlence, giyim, diğer)
+- `tur`: Zorunlu, enum (gıda, sağlık, ulaşım, eğlence, giyim, diğer)
 - `tarih`: Zorunlu, date format (Y-m-d)
 - `saat`: Zorunlu, time format (H:i:s)
 
@@ -195,7 +195,7 @@ Authorization: Bearer {token}
 ```
 
 **Query Parametreleri (Opsiyonel):**
-- `tur`: Kategori filtresi (gıda, sağlık, ulaşım, fatura, eğlence, giyim, diğer)
+- `tur`: Kategori filtresi (gıda, sağlık, ulaşım, eğlence, giyim, diğer)
 - `baslangic_tarih`: Başlangıç tarihi (Y-m-d)
 - `bitis_tarih`: Bitiş tarihi (Y-m-d)
 
@@ -391,6 +391,234 @@ GET /receipts/summary?period=yıllık     (Son 365 gün)
         "toplam_tutar": 350.00,
         "fis_sayisi": 2,
         "yuzde": 27.99
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 💡 Fatura İşlemleri (Invoice Operations)
+
+**Not:** Tüm fatura işlemleri `auth:sanctum` middleware ile korunur. Her istekte `Authorization: Bearer {token}` header'ı gönderilmelidir.
+
+---
+
+### 11. Fatura Ekle (Create Invoice)
+
+**Endpoint:** `POST /invoices`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+Content-Type: application/json
+```
+
+**İstek Gövdesi:**
+```json
+{
+  "baslik": "BEDAŞ Elektrik Faturası",
+  "tutar": 285.50,
+  "tur": "elektrik",
+  "son_odeme_tarihi": "2025-12-15"
+}
+```
+
+**Validasyon Kuralları:**
+- `baslik`: Zorunlu, string, max 255 karakter
+- `tutar`: Zorunlu, numeric, min 0
+- `tur`: Zorunlu, enum (elektrik, su, dogalgaz)
+- `son_odeme_tarihi`: Zorunlu, date format (Y-m-d)
+
+**Başarılı Yanıt (201):**
+```json
+{
+  "success": true,
+  "message": "Fatura başarıyla oluşturuldu",
+  "data": {
+    "invoice": {
+      "id": 1,
+      "user_id": 1,
+      "baslik": "BEDAŞ Elektrik Faturası",
+      "tutar": "285.50",
+      "tur": "elektrik",
+      "son_odeme_tarihi": "2025-12-15",
+      "durum": "odenmedi",
+      "created_at": "2025-12-03T15:20:10.000000Z",
+      "updated_at": "2025-12-03T15:20:10.000000Z"
+    }
+  }
+}
+```
+
+---
+
+### 12. Fatura Sil (Delete Invoice)
+
+**Endpoint:** `DELETE /invoices/{id}`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "message": "Fatura başarıyla silindi"
+}
+```
+
+**Hata Yanıtı (404):**
+```json
+{
+  "success": false,
+  "message": "Fatura bulunamadı"
+}
+```
+
+---
+
+### 13. Fatura Öde (Pay Invoice)
+
+**Endpoint:** `PATCH /invoices/{id}/pay`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "message": "Fatura başarıyla ödendi",
+  "data": {
+    "invoice": {
+      "id": 1,
+      "user_id": 1,
+      "baslik": "BEDAŞ Elektrik Faturası",
+      "tutar": "285.50",
+      "tur": "elektrik",
+      "son_odeme_tarihi": "2025-12-15",
+      "durum": "odendi",
+      "created_at": "2025-12-03T15:20:10.000000Z",
+      "updated_at": "2025-12-03T15:25:30.000000Z"
+    }
+  }
+}
+```
+
+**Hata Yanıtları:**
+```json
+{
+  "success": false,
+  "message": "Bu fatura zaten ödenmiş"
+}
+```
+
+---
+
+### 14. Ödenmemiş Faturaları Getir (Get Unpaid Invoices)
+
+**Endpoint:** `GET /invoices/unpaid`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "invoices": [
+      {
+        "id": 2,
+        "user_id": 1,
+        "baslik": "İSKİ Su Faturası",
+        "tutar": "95.20",
+        "tur": "su",
+        "son_odeme_tarihi": "2025-12-10",
+        "durum": "odenmedi",
+        "created_at": "2025-12-01T10:15:20.000000Z",
+        "updated_at": "2025-12-01T10:15:20.000000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 15. Her Fatura Türü İçin Son İki Fatura (Last Two Invoices By Type)
+
+**Endpoint:** `GET /invoices/last-two-by-type`
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Başarılı Yanıt (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "last_two_by_type": {
+      "elektrik": [
+        {
+          "id": 1,
+          "baslik": "BEDAŞ Elektrik Faturası",
+          "tutar": "285.50",
+          "tur": "elektrik",
+          "son_odeme_tarihi": "2025-12-15",
+          "durum": "odendi",
+          "created_at": "2025-12-03T15:20:10.000000Z"
+        }
+      ],
+      "su": [],
+      "dogalgaz": []
+    }
+  }
+}
+```
+Authorization: Bearer {token}
+```
+
+**Query Parametreleri:**
+- `period`: Dönem seçimi (haftalık, aylık, yıllık) - **Zorunlu**
+
+**Örnek İstekler:**
+```
+GET /receipts/summary?period=haftalık   (Son 7 gün)
+GET /receipts/summary?period=aylık      (Son 30 gün)
+GET /receipts/summary?period=yıllık     (Son 365 gün)
+```
+
+**Başarılı Yanıt (200) - Haftalık Örneği:**
+```json
+{
+  "success": true,
+  "data": {
+    "period": "haftalık",
+    "toplam_tutar": 1250.75,
+    "toplam_fis": 8,
+    "tur_ozeti": [
+      {
+        "tur": "gıda",
+        "toplam_tutar": 580.50,
+        "fis_sayisi": 3,
+        "yuzde": 46.40
+      },
+      {
+        "tur": "ulaşım",
+        "toplam_tutar": 350.00,
+        "fis_sayisi": 2,
+        "yuzde": 27.99
       },
       {
         "tur": "sağlık",
@@ -422,17 +650,24 @@ GET /receipts/summary?period=yıllık     (Son 365 gün)
 
 ## 📋 Kategori Listesi
 
-Sistemde kullanılabilecek fiş kategorileri:
+### Fiş Kategorileri:
 
 | Kategori | Icon | Açıklama |
 |----------|------|----------|
 | `gıda` | 🍔 | Yiyecek ve içecek harcamaları |
 | `sağlık` | 💊 | Sağlık, ilaç, hastane |
 | `ulaşım` | 🚗 | Ulaşım, yakıt, otopark |
-| `fatura` | 📄 | Elektrik, su, internet vb. |
 | `eğlence` | 🎉 | Eğlence, hobi, sosyal |
 | `giyim` | 👕 | Giyim, ayakkabı, aksesuar |
 | `diğer` | 📦 | Diğer harcamalar |
+
+### Fatura Kategorileri:
+
+| Kategori | Icon | Açıklama |
+|----------|------|----------|
+| `elektrik` | ⚡ | Elektrik faturaları |
+| `su` | 💧 | Su faturaları |
+| `dogalgaz` | 🔥 | Doğalgaz faturaları |
 
 ---
 
@@ -521,7 +756,7 @@ Authorization: Bearer {token}
 
 **API Service Dosyası:** `frontend/src/services/api.ts`
 
-Tüm API çağrıları bu serviste merkezi olarak yönetilir:
+### Fiş API'leri:
 - `register()` - Kayıt
 - `login()` - Giriş
 - `logout()` - Çıkış
@@ -532,6 +767,13 @@ Tüm API çağrıları bu serviste merkezi olarak yönetilir:
 - `updateReceipt()` - Fiş güncelle
 - `deleteReceipt()` - Fiş sil
 - `getSummary()` - Özet rapor
+
+### Fatura API'leri:
+- `createInvoice()` - Fatura ekle
+- `deleteInvoice()` - Fatura sil
+- `payInvoice()` - Fatura öde
+- `getUnpaidInvoices()` - Ödenmemiş faturaları getir
+- `getLastTwoByType()` - Türe göre son iki fatura
 
 ---
 
@@ -545,8 +787,14 @@ Tüm API çağrıları bu serviste merkezi olarak yönetilir:
 - `routes/api.php` - API route tanımları
 - `app/Http/Controllers/AuthController.php` - Kimlik doğrulama
 - `app/Http/Controllers/ReceiptController.php` - Fiş işlemleri
+- `app/Http/Controllers/InvoiceController.php` - Fatura işlemleri
 - `app/Models/Receipt.php` - Receipt modeli
-- `database/migrations/2025_11_29_170310_create_receipts_table.php` - Veritabanı şeması
+- `app/Models/Invoice.php` - Invoice modeli
+- `app/Models/User.php` - User modeli (receipts ve invoices ilişkileri)
+- `database/migrations/2025_11_29_170310_create_receipts_table.php` - Fiş tablosu
+- `database/migrations/2025_12_03_145153_create_invoices_table.php` - Fatura tablosu
 
 ---
+
+**Son Güncelleme:** 3 Aralık 2025
 

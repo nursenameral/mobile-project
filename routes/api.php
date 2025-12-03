@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ReceiptController;
+use App\Http\Controllers\InvoiceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -26,4 +27,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/receipts/{id}', [ReceiptController::class, 'update']); // Fiş güncelle
     Route::delete('/receipts/{id}', [ReceiptController::class, 'destroy']); // Fiş sil
     Route::get('/receipts/summary/all', [ReceiptController::class, 'summary']); // Türlere göre özet
+
+    // Invoice routes
+    Route::post('/invoices', [InvoiceController::class, 'store']); // Fatura ekle
+    Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']); // Fatura sil
+    Route::patch('/invoices/{id}/pay', [InvoiceController::class, 'pay']); // Fatura öde
+    Route::get('/invoices/unpaid', [InvoiceController::class, 'getUnpaid']); // Ödenmemiş faturaları getir
+    Route::get('/invoices/last-two-by-type', [InvoiceController::class, 'getLastTwoByType']); // Her türden son 2 fatura
 });

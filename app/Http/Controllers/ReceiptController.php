@@ -16,7 +16,7 @@ class ReceiptController extends Controller
         $validator = Validator::make($request->all(), [
             'tutar' => 'required|numeric|min:0',
             'baslik' => 'required|string|max:255',
-            'tur' => 'required|in:gıda,sağlık,ulaşım,fatura,eğlence,giyim,diğer',
+            'tur' => 'required|in:gıda,sağlık,ulaşım,eğlence,giyim,diğer',
             'tarih' => 'required|date',
             'saat' => 'required|date_format:H:i',
         ]);
@@ -56,7 +56,7 @@ class ReceiptController extends Controller
     public function index(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'tur' => 'nullable|in:gıda,sağlık,ulaşım,fatura,eğlence,giyim,diğer',
+            'tur' => 'nullable|in:gıda,sağlık,ulaşım,eğlence,giyim,diğer',
             'baslangic_tarih' => 'nullable|date',
             'bitis_tarih' => 'nullable|date|after_or_equal:baslangic_tarih',
         ]);
@@ -144,7 +144,7 @@ class ReceiptController extends Controller
         $validator = Validator::make($request->all(), [
             'tutar' => 'sometimes|numeric|min:0',
             'baslik' => 'sometimes|string|max:255',
-            'tur' => 'sometimes|in:gıda,sağlık,ulaşım,fatura,eğlence,giyim,diğer',
+            'tur' => 'sometimes|in:gıda,sağlık,ulaşım,eğlence,giyim,diğer',
             'tarih' => 'sometimes|date',
             'saat' => 'sometimes|date_format:H:i',
         ]);
