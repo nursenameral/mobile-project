@@ -1,2 +1,2 @@
 # mobile-project
-Android app with react native for mobile programming lesson
+backend ve frontend dosyaları için branch kontrol ediniz
