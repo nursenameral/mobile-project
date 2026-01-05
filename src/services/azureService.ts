@@ -1,5 +1,5 @@
-const AZURE_ENDPOINT = "https://fatura-analiz.cognitiveservices.azure.com/"; 
-const AZURE_KEY = "AdrmAklu87xHD4btD9gYxYwgmrpqowf1W6V6OFWjHBX7sk8bovF5JQQJ99BLAC5RqLJXJ3w3AAALACOGV8P0";
+const AZURE_ENDPOINT = ""; 
+const AZURE_KEY = "";
 
 const API_VERSION = "2023-10-31-preview";
 const MODEL_ID = "prebuilt-invoice";
