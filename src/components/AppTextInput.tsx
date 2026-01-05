@@ -7,7 +7,7 @@ import {
   TextInputProps, 
   TouchableOpacity 
 } from 'react-native';
-import MaterialIcons from "@react-native-vector-icons/material-icons";
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { AppText } from './AppText';
 
 interface AppTextInputProps extends TextInputProps {

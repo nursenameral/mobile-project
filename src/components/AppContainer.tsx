@@ -14,7 +14,7 @@ export const AppContainer: React.FC<AppContainerProps> = ({
 }) => {
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={statusBarStyle} backgroundColor="#EEF7FA" />
+      <StatusBar barStyle={statusBarStyle} backgroundColor="#FFFFFF" />
       {children}
     </View>
   );
@@ -23,6 +23,6 @@ export const AppContainer: React.FC<AppContainerProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#EEF7FA',
+    backgroundColor: '#FFFFFF',
   },
 });

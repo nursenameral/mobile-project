@@ -1,164 +1,97 @@
-# Fiş/Fatura Yönetim Sistemi
+This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
-Bu proje, fiş ve fatura yönetimi için geliştirilmiş bir mobil uygulamadır. Laravel backend API'si ile React Native frontend uygulamasından oluşmaktadır.
+# Getting Started
 
-## Proje Yapısı
+> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
 
-### Backend (Laravel)
-- **Framework**: Laravel 12.0
-- **Veritabanı**: MySQL
-- **Kimlik Doğrulama**: Laravel Sanctum
-- **API Endpoint'leri**: RESTful API yapısı
+## Step 1: Start Metro
 
-### Frontend (React Native)
-- **Framework**: React Native + TypeScript
-- **Navigation**: React Navigation (Stack + Bottom Tabs)
-- **State Management**: React Hooks
-- **Local Storage**: AsyncStorage
-- **UI Components**: Custom component library
+First, you will need to run **Metro**, the JavaScript build tool for React Native.
 
-## Tamamlanan Özellikler
+To start the Metro dev server, run the following command from the root of your React Native project:
 
-### Kimlik Doğrulama Sistemi
-- Kullanıcı kaydı (name, email, password validasyonu)
-- Giriş yapma (email/password)
-- "Beni Hatırla" özelliği
-- Otomatik oturum kontrolü
-- Güvenli çıkış yapma
-- Token tabanlı kimlik doğrulama
-- Toast bildirimleri (başarı/hata mesajları)
+```sh
+# Using npm
+npm start
 
-### Navigation Sistemi
-- Welcome/Giriş/Kayıt ekranları arası geçiş
-- Ana uygulama için bottom tab navigation
-- 5 ana sayfa: Graph, Invoice, Camera, Receipts, Profile
-- Custom tasarımlı bottom navigation bar
-- Responsive ve modern UI
-
-### UI/UX Tasarımı
-- Tutarlı renk paleti (#EEF7FA, #9DB4C0, #253237, #5C6B73)
-- Vector görselleri ile modern arka planlar
-- Custom component library (AppText, AppButton, AppTextInput, AppContainer)
-- Material Icons entegrasyonu
-- Responsive tasarım
-
-### API Entegrasyonu
-- Laravel backend ile REST API iletişimi
-- Hata yönetimi ve kullanıcı dostu mesajlar
-- Network request handling
-- Token yönetimi
-
-### Sayfa Yapıları
-- **GraphScreen**: Grafik analizi sayfası (Vector3 arka plan)
-- **InvoiceScreen**: Fatura yönetimi sayfası (Vector3 arka plan)
-- **CameraScreen**: Fiş/fatura fotoğraf çekme sayfası
-- **ReceiptsScreen**: Fiş kayıtları sayfası (Vector3 arka plan)
-- **ProfileScreen**: Kullanıcı profili ve ayarları (Vector2 + account icon)
-
-## Backend API Endpoint'leri
-
-### Kimlik Doğrulama
-- `POST /api/register` - Kullanıcı kaydı
-- `POST /api/login` - Giriş yapma
-- `POST /api/logout` - Çıkış yapma (gelecek)
-
-### Veritabanı Tabloları
-- **users**: Kullanıcı bilgileri
-- **receipts**: Fiş kayıtları
-- **invoices**: Fatura kayıtları
-- **personal_access_tokens**: API token'ları
-
-## Eksik Özellikler ve Geliştirme Alanları
-
-### Backend
-- CRUD işlemleri için API endpoint'leri eksik:
-  - Fiş ekleme/düzenleme/silme/listeleme
-  - Fatura ekleme/düzenleme/silme/listeleme
-  - Kullanıcı profil güncelleme
-  - Dashboard istatistikleri
-- Dosya yükleme sistemi (fiş/fatura fotoğrafları)
-- Veri validasyonu ve güvenlik kontrolleri
-- Rate limiting ve API koruması
-
-### Frontend
-- Ana sayfa içeriklerinin detaylandırılması:
-  - Graph sayfasında gelir/gider grafikleri
-  - Invoice sayfasında fatura listesi ve CRUD işlemleri
-  - Camera sayfasında fotoğraf çekme ve OCR entegrasyonu
-  - Receipts sayfasında fiş listesi ve kategorilendirme
-  - Profile sayfasında kullanıcı bilgileri düzenleme
-- Veri listeleme ve arama özellikleri
-- Offline mod ve veri senkronizasyonu
-- Push notification sistemi
-- Veri export/import özellikleri
-
-### Kamera ve OCR
-- Fiş/fatura fotoğraf çekme sistemi
-- OCR (Optical Character Recognition) entegrasyonu
-- Metin tanıma ve veri çıkarma
-- Otomatik kategori tanıma
-
-### Grafik ve Analiz
-- Chart.js veya benzeri grafik kütüphanesi entegrasyonu
-- Aylık/yıllık gelir-gider analizleri
-- Kategori bazlı harcama grafikleri
-- Trend analizleri
-
-### Veritabanı İlişkileri
-- Kullanıcı-Fiş ilişkilendirmesi
-- Kullanıcı-Fatura ilişkilendirmesi
-- Kategori sistemi
-- Tag ve filtreleme sistemi
-
-## Kullanılan Teknolojiler
-
-### Backend
-- Laravel Framework 12.0
-- Laravel Sanctum (API Authentication)
-- MySQL Database
-- Composer Package Manager
-
-### Frontend
-- React Native 0.72+
-- TypeScript
-- React Navigation 6
-- AsyncStorage
-- React Native Vector Icons
-- React Native Gesture Handler
-
-### Development Tools
-- VS Code
-- Android Studio / Xcode
-- Metro Bundler
-- Git Version Control
-
-## Kurulum ve Çalıştırma
-
-### Backend Setup
-```bash
-cd backend
-composer install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate
-php artisan serve
+# OR using Yarn
+yarn start
 ```
 
-### Frontend Setup
-```bash
-cd frontend
-npm install
-npx react-native start
-npx react-native run-android # veya run-ios
+## Step 2: Build and run your app
+
+With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+
+### Android
+
+```sh
+# Using npm
+npm run android
+
+# OR using Yarn
+yarn android
 ```
 
-## Proje Durumu
+### iOS
 
-Şu anda proje temel kimlik doğrulama sistemi ve navigation yapısı tamamlanmış durumda. Ana sayfa içerikleri ve core business logic geliştirme aşamasına hazır. Backend API'leri genişletilmeli ve frontend sayfaları detaylandırılmalı.
+For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
 
-Öncelikli geliştirme alanları:
-1. Backend CRUD API'lerinin tamamlanması
-2. Camera sayfasında fotoğraf çekme özelliği
-3. Graph sayfasında grafik gösteriminin implementasyonu
-4. Invoice ve Receipts sayfalarında listeleme ve yönetim özellikleri
-5. Profile sayfasında kullanıcı bilgilerinin düzenlenebilmesi
+The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+
+```sh
+bundle install
+```
+
+Then, and every time you update your native dependencies, run:
+
+```sh
+bundle exec pod install
+```
+
+For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+
+```sh
+# Using npm
+npm run ios
+
+# OR using Yarn
+yarn ios
+```
+
+If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+
+This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+
+## Step 3: Modify your app
+
+Now that you have successfully run the app, let's make changes!
+
+Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+
+When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+
+- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
+- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+
+## Congratulations! :tada:
+
+You've successfully run and modified your React Native App. :partying_face:
+
+### Now what?
+
+- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
+- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+
+# Troubleshooting
+
+If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+
+# Learn More
+
+To learn more about React Native, take a look at the following resources:
+
+- [React Native Website](https://reactnative.dev) - learn more about React Native.
+- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
+- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
+- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
+- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.

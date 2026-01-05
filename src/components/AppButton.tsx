@@ -1,6 +1,6 @@
 // src/components/AppButton.tsx
 import React from 'react';
-import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { TouchableOpacity, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { AppText } from './AppText';
 
 interface AppButtonProps {
@@ -8,7 +8,7 @@ interface AppButtonProps {
   onPress: () => void;
   variant?: 'primary' | 'secondary';
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const AppButton: React.FC<AppButtonProps> = ({ 

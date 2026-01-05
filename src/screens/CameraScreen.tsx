@@ -9,113 +9,111 @@ import {
   TouchableOpacity,
   Text,
   ActivityIndicator,
-  ScrollView, 
+  Modal,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView
 } from 'react-native';
 import {
   launchCamera,
-  launchImageLibrary, // YENİ: Galeri kütüphanesi eklendi
+  launchImageLibrary,
   CameraOptions,
+  ImageLibraryOptions,
   ImagePickerResponse,
-  ImageLibraryOptions, // YENİ: Galeri ayarları için tip
 } from 'react-native-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppContainer } from '../components';
 import { analyzeInvoice } from '../services/azureService';
+import { createReceipt, createInvoice, predictCategory } from '../services/api';
+import { 
+  RECEIPT_CATEGORIES, 
+  INVOICE_CATEGORIES, 
+  detectCategory, 
+  detectInvoiceCategory 
+} from '../utils/categories';
 
-// Tip Tanımları
-interface InvoiceResult {
-  faturaNo: string;
-  tarih: string;
-  toplamTutar: string;
-  satici: string;
-  vergi: string;
+// Tüm kategorileri tek listede birleştiriyoruz (Görünüm için)
+const ALL_CATEGORIES = [...RECEIPT_CATEGORIES, ...INVOICE_CATEGORIES];
+
+// Yardımcı: Seçili kategori bir fatura türü mü?
+const isInvoiceCategory = (catId: string) => {
+  return INVOICE_CATEGORIES.some(c => c.id === catId);
+};
+
+interface AzureResult {
+  faturaNo?: string;
+  tarih?: string;
+  saat?: string;
+  toplamTutar?: string;
+  satici?: string;
+  vergi?: string;
+  success: boolean;
+  message?: string;
 }
 
 const CameraScreen: React.FC = ({ navigation }: any) => {
-  // State Yönetimi
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<InvoiceResult | null>(null);
-  
-  // YENİ: Kullanıcı kamerayı iptal ederse menüyü göstermek için state
-  const [showMenu, setShowMenu] = useState(false);
+  const [capturedBase64, setCapturedBase64] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  // Kamera guard (çift açılmayı önler)
+  // Modal State
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editData, setEditData] = useState({ 
+      baslik: '', 
+      tutar: '', 
+      tarih: '',      // Fiş: İşlem Tarihi
+      saat: '',       // Fiş: İşlem Saati
+      son_odeme: '',  // Fatura: Son Ödeme Tarihi
+      tur: 'diğer'    // Varsayılan kategori
+  }); 
+  const [isSaving, setIsSaving] = useState(false);
+
   const hasOpenedCamera = useRef(false);
+  const isUserCancelled = useRef(false);
 
-  /**
-   * ORTAK YANIT İŞLEYİCİ (Hem Kamera Hem Galeri İçin)
-   */
-  const handleImageResponse = (response: ImagePickerResponse) => {
-    // Kullanıcı iptal ettiyse
-    if (response.didCancel) {
-      console.log('Kullanıcı iptal etti');
-      // YENİ MANTIK: İptal ederse sayfadan çıkma, menüyü göster
-      setShowMenu(true); 
-      return;
-    }
-
-    if (response.errorMessage) {
-      Alert.alert('Hata', response.errorMessage);
-      setShowMenu(true);
-      return;
-    }
-
-    const asset = response.assets?.[0];
-    const uri = asset?.uri;
-    const base64 = asset?.base64;
-
-    if (uri) {
-      setCapturedPhoto(uri);
-      setShowMenu(false); // Resim seçildiği için menüyü gizle
-
-      // Fotoğraf varsa analizi başlat
-      if (base64) {
-          processInvoice(base64);
-      } else {
-          Alert.alert("Hata", "Görüntü verisi alınamadı (Base64 eksik).");
-      }
-    } else {
-      setShowMenu(true);
-    }
+  // --- FORMATLAYICILAR ---
+  const parseAmount = (amountStr?: string): number => {
+    if (!amountStr) return 0;
+    const cleaned = amountStr.replace(/[^0-9.,]/g, '').replace(',', '.');
+    return parseFloat(cleaned) || 0;
   };
 
-  /**
-   * AZURE ANALİZ SÜRECİ
-   */
-  const processInvoice = async (base64: string) => {
-    setAnalyzing(true);
-    try {
-      console.log("Analiz başlatılıyor...");
-      const data = await analyzeInvoice(base64);
-
-      if (data && (data.faturaNo || data.success)) {
-        setAnalysisResult(data as InvoiceResult);
-      } else {
-        Alert.alert("Bilgi", data.message || "Fatura verisi okunamadı.");
-      }
-    } catch (error: any) {
-      console.error("Analiz Hatası:", error);
-      Alert.alert("Hata", "Analiz sırasında sorun oluştu.");
-    } finally {
-      setAnalyzing(false);
+  const formatDateForBackend = (dateStr?: string) => {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    const match = dateStr.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+    if (match) {
+      const day = match[1].padStart(2, '0');
+      const month = match[2].padStart(2, '0');
+      let year = match[3];
+      if (year.length === 2) year = '20' + year;
+      return `${year}-${month}-${day}`;
     }
+    return new Date().toISOString().split('T')[0];
   };
 
-  /**
-   * KAMERA İZNİ (Android)
-   */
+  const formatTimeForBackend = (timeStr?: string) => {
+    if (!timeStr || timeStr === "Belirlenemedi") {
+      const now = new Date();
+      return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    }
+    const match = timeStr.match(/(\d{1,2}):(\d{2})/);
+    if (match) {
+      return `${match[1].padStart(2, '0')}:${match[2]}`;
+    }
+    return "00:00";
+  };
+
+  // --- KAMERA / GALERİ ---
   const requestCameraPermission = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
     try {
       const cameraPermission = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
       if (!cameraPermission) {
         const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
-            title: 'Kamera İzni',
-            message: 'Uygulama fatura taramak için kameraya erişmelidir.',
-            buttonNeutral: 'Daha Sonra',
-            buttonNegative: 'İptal',
-            buttonPositive: 'Tamam',
+          title: 'Kamera İzni', message: 'Kamera erişimi gerekiyor.', buttonNeutral: 'Daha Sonra', buttonNegative: 'İptal', buttonPositive: 'Tamam',
         });
         return granted === PermissionsAndroid.RESULTS.GRANTED;
       }
@@ -123,223 +121,341 @@ const CameraScreen: React.FC = ({ navigation }: any) => {
     } catch (error) { return false; }
   };
 
-  /**
-   * KAMERA AÇMA (Manuel veya Otomatik)
-   */
-  const openCamera = async () => {
+  const openCameraAutomatically = async () => {
+    if (hasOpenedCamera.current || isUserCancelled.current) return;
+    hasOpenedCamera.current = true;
     const hasPermission = await requestCameraPermission();
-    if (!hasPermission) {
-      Alert.alert('İzin Gerekli', 'Kamera izni vermelisiniz.');
-      return;
-    }
-
-    const options: CameraOptions = {
-      mediaType: 'photo',
-      cameraType: 'back',
-      saveToPhotos: false,
-      includeBase64: true,
-      quality: 0.8,
-    };
-
-    launchCamera(options, handleImageResponse);
-  };
-
-  /**
-   * YENİ: GALERİ AÇMA FONKSİYONU
-   */
-  const openGallery = () => {
-    const options: ImageLibraryOptions = {
-        mediaType: 'photo',
-        includeBase64: true,
-        quality: 0.8,
-        selectionLimit: 1,
-    };
+    if (!hasPermission) { hasOpenedCamera.current = false; return; }
     
-    launchImageLibrary(options, handleImageResponse);
+    launchCamera({ mediaType: 'photo', cameraType: 'back', saveToPhotos: false, includeBase64: true, quality: 0.8 }, (response) => {
+      if (response.didCancel) { isUserCancelled.current = true; return; }
+      if (response.errorMessage) { Alert.alert('Hata', response.errorMessage); return; }
+      const asset = response.assets?.[0];
+      if (asset?.uri) {
+        setCapturedPhoto(asset.uri);
+        setCapturedBase64(asset.base64 || null);
+      }
+    });
   };
 
-  /**
-   * ODAKLANMA TETİKLEYİCİSİ (Otomatik Başlatma)
-   */
-  useFocusEffect(
-    useCallback(() => {
-      // Eğer zaten bir foto varsa veya menü açıksa tekrar kamerayı açma
-      if (capturedPhoto || showMenu) return;
+  const openGallery = () => {
+    isUserCancelled.current = true;
+    setIsLoading(true);
+    launchImageLibrary({ mediaType: 'photo', selectionLimit: 1, quality: 0.8, includeBase64: true }, (response) => {
+      setIsLoading(false);
+      if (response.didCancel) { isUserCancelled.current = true; return; }
+      const asset = response.assets?.[0];
+      if (asset?.uri) {
+        setCapturedPhoto(asset.uri);
+        setCapturedBase64(asset.base64 || null);
+        hasOpenedCamera.current = true;
+      }
+    });
+  };
 
-      hasOpenedCamera.current = false;
-      const timeout = setTimeout(() => {
-        if (!hasOpenedCamera.current) {
-            hasOpenedCamera.current = true;
-            openCamera();
+  const openCameraManually = () => { hasOpenedCamera.current = false; isUserCancelled.current = false; openCameraAutomatically(); };
+  const retakePhoto = () => { 
+      isUserCancelled.current = false; 
+      hasOpenedCamera.current = false; 
+      setCapturedPhoto(null); 
+      setCapturedBase64(null); 
+      setModalVisible(false); 
+      setTimeout(() => openCameraAutomatically(), 100); 
+  };
+
+  useFocusEffect(useCallback(() => {
+    if (capturedPhoto) return;
+    hasOpenedCamera.current = false;
+    openCameraAutomatically();
+    return () => { isUserCancelled.current = false; hasOpenedCamera.current = false; };
+  }, [capturedPhoto]));
+
+  // --- ANALİZ ---
+  const handleAnalyze = async () => {
+    if (!capturedBase64) { Alert.alert("Hata", "Görüntü yok."); return; }
+    try {
+      setIsAnalyzing(true);
+      const result: AzureResult = await analyzeInvoice(capturedBase64);
+
+      if (result.success) {
+        const satici = result.satici || "";
+        
+        // 1. Önce Fatura Kontrolü
+        let detectedCat = detectInvoiceCategory(satici);
+        
+        // 2. Fatura değilse Fiş Kontrolü
+        if (!detectedCat) {
+            detectedCat = detectCategory(satici);
         }
-      }, 300);
 
-      return () => clearTimeout(timeout);
-    }, [capturedPhoto, showMenu]) // showMenu ve capturedPhoto değişince effect'i yönet
-  );
+        // 3. Hiçbiri değilse Backend AI (Gemini) Sor (Sadece fişler için varsayıyoruz veya genel sorulabilir)
+        if (!detectedCat && satici.length > 2) {
+             try {
+                const token = await AsyncStorage.getItem('userToken');
+                if (token) {
+                    const aiRes = await predictCategory(token, satici);
+                    if (aiRes?.category) detectedCat = aiRes.category;
+                }
+            } catch (e) { console.log("AI hatası"); }
+        }
 
-  /**
-   * YENİDEN ÇEK / SIFIRLA
-   */
-  const resetFlow = () => {
-    setCapturedPhoto(null);
-    setAnalysisResult(null);
-    setAnalyzing(false);
-    setShowMenu(true); // Direkt menüye dönelim ki kullanıcı seçebilsin
-    hasOpenedCamera.current = false; 
+        // Eğer hala bulunamadıysa varsayılan 'diğer' (Fiş)
+        const finalCat = detectedCat || 'diğer';
+
+        setEditData({
+            baslik: satici || "Bilinmeyen",
+            tutar: parseAmount(result.toplamTutar).toString(),
+            tarih: result.tarih || "", 
+            saat: result.saat || "",   
+            son_odeme: result.tarih || "", // Faturalar için Azure genelde tarihi okur, bunu son ödeme olarak öneriyoruz
+            tur: finalCat
+        });
+        setModalVisible(true);
+
+      } else {
+        Alert.alert("Başarısız", "Belge okunamadı.");
+      }
+    } catch (error) {
+      Alert.alert("Hata", "Analiz hatası.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
-  /**
-   * ARAYÜZ
-   */
-  
-  // 1. Durum: Fotoğraf Çekildi -> Sonuç Ekranı
+  // --- KAYDETME (DİNAMİK) ---
+// --- KAYDETME (DİNAMİK) ---
+  const handleSave = async () => {
+      if (!editData.baslik || !editData.tutar) {
+          Alert.alert("Eksik", "Başlık ve tutar zorunludur.");
+          return;
+      }
+      setIsSaving(true);
+      try {
+          const token = await AsyncStorage.getItem('userToken');
+          if (!token) { Alert.alert("Hata", "Oturum süreniz dolmuş."); return; }
+
+          // Tutarı sayıya çevir (Backend sayı bekliyor)
+          // Virgülü noktaya çevirip parse ediyoruz.
+          const numericTutar = parseFloat(editData.tutar.replace(',', '.'));
+
+          // Hangi türde kaydedeceğimize karar veriyoruz
+          if (isInvoiceCategory(editData.tur)) {
+              // --- FATURA OLARAK KAYDET ---
+              const finalDueDate = formatDateForBackend(editData.son_odeme);
+
+              await createInvoice(token, {
+                  baslik: editData.baslik,
+                  tutar: numericTutar,
+                  son_odeme_tarihi: finalDueDate,
+                  tur: editData.tur 
+              });
+              
+              Alert.alert("Başarılı", "Fatura kaydedildi!", [
+                  { text: "Tamam", onPress: () => {
+                      setModalVisible(false);
+                      navigation.navigate('Invoice'); 
+                      setCapturedPhoto(null); 
+                      setCapturedBase64(null);
+                  }}
+              ]);
+
+          } else {
+              // --- FİŞ OLARAK KAYDET ---
+              const finalDate = formatDateForBackend(editData.tarih);
+              const finalTime = formatTimeForBackend(editData.saat);
+
+              await createReceipt(token, {
+                  baslik: editData.baslik,
+                  tutar: numericTutar, // Sayı olarak gönderiyoruz
+                  tarih: finalDate,
+                  saat: finalTime,
+                  tur: editData.tur 
+              });
+
+              Alert.alert("Başarılı", "Fiş kaydedildi!", [
+                  { text: "Tamam", onPress: () => {
+                      setModalVisible(false);
+                      navigation.navigate('Receipts');
+                      setCapturedPhoto(null); 
+                      setCapturedBase64(null);
+                  }}
+              ]);
+          }
+
+      } catch (error) {
+          console.log(error);
+          Alert.alert("Hata", error instanceof Error ? error.message : "Kaydetme başarısız.");
+      } finally {
+          setIsSaving(false);
+      }
+  };
+  // --- RENDER ---
+  const isCurrentInvoice = isInvoiceCategory(editData.tur);
+
   if (capturedPhoto) {
     return (
       <AppContainer>
         <View style={styles.previewContainer}>
-          {/* Resim Alanı */}
-          <View style={styles.imageWrapper}>
-             <Image source={{ uri: capturedPhoto }} style={styles.previewImage} resizeMode="contain" />
-          </View>
+          <Image source={{ uri: capturedPhoto }} style={styles.previewImage} />
+          
+          {isAnalyzing && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color="#fff" />
+              <Text style={styles.loadingText}>Yapay Zeka Analiz Ediyor...</Text>
+            </View>
+          )}
 
-          {/* Sonuç Alanı */}
-          <ScrollView style={styles.resultScroll} contentContainerStyle={styles.resultContent}>
-            {analyzing ? (
-                <View style={styles.loadingCard}>
-                    <ActivityIndicator size="large" color="#007AFF" />
-                    <Text style={styles.analyzingText}>Yapay zeka faturayı okuyor...</Text>
-                </View>
-            ) : analysisResult ? (
-                <View style={styles.resultCard}>
-                    <View style={styles.resultHeaderRow}>
-                        <Text style={styles.resultTitle}>Analiz Sonucu</Text>
-                        <Text style={styles.successBadge}>✓ Tamamlandı</Text>
-                    </View>
-                    <View style={styles.divider} />
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Satıcı:</Text>
-                        <Text style={styles.value}>{analysisResult.satici}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Tarih:</Text>
-                        <Text style={styles.value}>{analysisResult.tarih}</Text>
-                    </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>Toplam:</Text>
-                        <Text style={[styles.value, styles.totalValue]}>{analysisResult.toplamTutar}</Text>
-                    </View>
-                </View>
-            ) : (
-                <Text style={styles.errorText}>Sonuç görüntülenemedi.</Text>
-            )}
-          </ScrollView>
-
-          {/* Butonlar */}
           <View style={styles.actionButtons}>
-            <TouchableOpacity style={styles.retakeButton} onPress={resetFlow} disabled={analyzing}>
-              <Text style={styles.buttonText}>Yeni İşlem</Text>
+            <TouchableOpacity style={styles.retakeButton} onPress={retakePhoto} disabled={isAnalyzing}>
+              <Text style={styles.buttonText}>Yeniden Çek</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity 
-                style={[styles.saveButton, analyzing && styles.disabledButton]} 
-                onPress={() => { Alert.alert("Başarılı", "Kaydedildi!"); navigation.goBack(); }}
-                disabled={analyzing || !analysisResult}
-            >
-              <Text style={styles.buttonText}>{analyzing ? "..." : "Kaydet"}</Text>
+            <TouchableOpacity style={styles.saveButton} onPress={handleAnalyze} disabled={isAnalyzing}>
+              <Text style={styles.buttonText}>Analiz Et</Text>
             </TouchableOpacity>
           </View>
+
+          {/* --- BİRLEŞTİRİLMİŞ MODAL --- */}
+          <Modal visible={modalVisible} animationType="slide" transparent={true} onRequestClose={() => setModalVisible(false)}>
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>
+                        {isCurrentInvoice ? 'Fatura Detayları' : 'Fiş Detayları'}
+                    </Text>
+                    
+                    <ScrollView>
+                        <Text style={styles.label}>
+                            {isCurrentInvoice ? 'Kurum Adı' : 'Satıcı / Mağaza'}
+                        </Text>
+                        <TextInput style={styles.input} value={editData.baslik} onChangeText={(t) => setEditData({...editData, baslik: t})} />
+                        
+                        <Text style={styles.label}>Tutar (TL)</Text>
+                        <TextInput style={styles.input} value={editData.tutar} keyboardType="numeric" onChangeText={(t) => setEditData({...editData, tutar: t})} />
+                        
+                        {/* KATEGORİYE GÖRE DEĞİŞEN ALANLAR */}
+                        {isCurrentInvoice ? (
+                            // FATURA İSE:
+                            <View>
+                                <Text style={styles.label}>Son Ödeme Tarihi</Text>
+                                <TextInput 
+                                    style={styles.input} 
+                                    value={editData.son_odeme} 
+                                    placeholder="GG/AA/YYYY"
+                                    onChangeText={(t) => setEditData({...editData, son_odeme: t})} 
+                                />
+                            </View>
+                        ) : (
+                            // FİŞ İSE:
+                            <View style={styles.row}>
+                                <View style={{flex: 1, marginRight: 8}}>
+                                    <Text style={styles.label}>Tarih</Text>
+                                    <TextInput 
+                                        style={styles.input} 
+                                        value={editData.tarih} 
+                                        placeholder="GG/AA/YYYY"
+                                        onChangeText={(t) => setEditData({...editData, tarih: t})} 
+                                    />
+                                </View>
+                                <View style={{flex: 1}}>
+                                    <Text style={styles.label}>Saat</Text>
+                                    <TextInput 
+                                        style={styles.input} 
+                                        value={editData.saat} 
+                                        placeholder="14:30"
+                                        onChangeText={(t) => setEditData({...editData, saat: t})} 
+                                    />
+                                </View>
+                            </View>
+                        )}
+
+                        <Text style={styles.label}>Kategori (Seçim Yapınız)</Text>
+                        <View style={styles.catGrid}>
+                            {ALL_CATEGORIES.map(cat => (
+                                <TouchableOpacity 
+                                    key={cat.id} 
+                                    style={[
+                                        styles.catChip, 
+                                        editData.tur === cat.id && styles.catChipSelected,
+                                        // Fatura kategorilerini ayırt etmek için ekstra stil (opsiyonel)
+                                        isInvoiceCategory(cat.id) && { borderColor: '#FFD700' } 
+                                    ]} 
+                                    onPress={() => setEditData({...editData, tur: cat.id})}
+                                >
+                                    <Text>{cat.icon}</Text>
+                                    <Text style={[styles.catText, editData.tur === cat.id && styles.catTextSelected]}>
+                                        {cat.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </ScrollView>
+
+                    <View style={styles.modalButtons}>
+                        <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
+                            <Text style={styles.cancelText}>İptal</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.confirmBtn} onPress={handleSave} disabled={isSaving}>
+                            {isSaving ? <ActivityIndicator color="#fff"/> : <Text style={styles.confirmText}>Kaydet</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </KeyboardAvoidingView>
+          </Modal>
         </View>
       </AppContainer>
     );
   }
 
-  // 2. Durum: Kullanıcı Otomatik Kamerayı İptal Etti -> Menü Ekranı (YENİ)
-  if (showMenu) {
-      return (
-        <AppContainer>
-            <View style={styles.menuContainer}>
-                <Image source={require('../pics/Vector3.png')} style={styles.topVector} />
-                
-                <View style={styles.menuContent}>
-                    <Text style={styles.menuTitle}>Fatura Yükle</Text>
-                    <Text style={styles.menuSubtitle}>Devam etmek için bir yöntem seçin</Text>
-
-                    <TouchableOpacity style={styles.menuButton} onPress={openCamera}>
-                        <Text style={styles.menuButtonText}>📸  Kamerayı Aç</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={[styles.menuButton, styles.galleryButton]} onPress={openGallery}>
-                        <Text style={[styles.menuButtonText, styles.galleryButtonText]}>🖼️  Galeriden Seç</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </AppContainer>
-      );
-  }
-
-  // 3. Durum: İlk Yükleme (Otomatik Açılış Bekleniyor)
+  // --- BOŞ EKRAN ---
   return (
     <AppContainer>
       <View style={styles.emptyScreen}>
-        <ActivityIndicator size="large" color="#5C6B73" />
-        <Text style={styles.loadingText}>Kamera başlatılıyor...</Text>
+        {isLoading && <ActivityIndicator size="large" color="#5C6B73" style={{marginBottom: 20}} />}
+        <View style={styles.buttonContainer}>
+            <TouchableOpacity style={styles.cameraButton} onPress={openCameraManually} disabled={isLoading}>
+                <Text style={styles.cameraButtonText}>Kamerayı Aç</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.galleryButton} onPress={openGallery} disabled={isLoading}>
+                {isLoading ? <ActivityIndicator size="small" color="#007AFF" /> : <Text style={styles.galleryButtonText}>Veya Galeriden Seç</Text>}
+            </TouchableOpacity>
+        </View>
       </View>
     </AppContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  // Genel
   emptyScreen: { flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 12, color: '#424242', fontSize: 16 },
-  
-  // Menü Ekranı Stilleri (YENİ)
-  menuContainer: { flex: 1, backgroundColor: '#EEF7FA' },
-  topVector: { width: '100%', height: 200, resizeMode: 'cover' },
-  menuContent: { padding: 24, alignItems: 'center', marginTop: 20 },
-  menuTitle: { fontSize: 24, fontWeight: 'bold', color: '#333', marginBottom: 8 },
-  menuSubtitle: { fontSize: 16, color: '#666', marginBottom: 32 },
-  menuButton: {
-      backgroundColor: '#007AFF',
-      width: '100%',
-      padding: 18,
-      borderRadius: 16,
-      alignItems: 'center',
-      marginBottom: 16,
-      shadowColor: '#007AFF',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 5,
-      elevation: 5,
-  },
-  galleryButton: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#007AFF', shadowColor: 'transparent' },
-  menuButtonText: { color: '#FFF', fontSize: 18, fontWeight: 'bold' },
-  galleryButtonText: { color: '#007AFF' },
-
-  // Sonuç Ekranı Stilleri
-  previewContainer: { flex: 1, backgroundColor: '#F5F7FA' },
-  imageWrapper: { height: 300, backgroundColor: '#E1E4E8', justifyContent: 'center' },
-  previewImage: { width: '100%', height: '100%' },
-  resultScroll: { flex: 1 },
-  resultContent: { padding: 20 },
-  loadingCard: { padding: 30, alignItems: 'center', backgroundColor: '#fff', borderRadius: 16 },
-  analyzingText: { marginTop: 16, color: '#333', fontWeight: 'bold' },
-  resultCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, elevation: 3 },
-  resultHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  resultTitle: { fontSize: 18, fontWeight: 'bold', color: '#333' },
-  successBadge: { color: '#2E7D32', backgroundColor: '#E8F5E9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, fontSize: 12, overflow: 'hidden' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  label: { color: '#757575', fontWeight: '500' },
-  value: { color: '#212121', fontWeight: '600', flex: 1, textAlign: 'right' },
-  totalValue: { color: '#007AFF', fontWeight: 'bold', fontSize: 20 },
-  divider: { height: 1, backgroundColor: '#EEEEEE', marginVertical: 12 },
-  errorText: { color: '#FF5252', textAlign: 'center', marginTop: 20 },
-  actionButtons: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: '#FFFFFF', padding: 20, borderTopWidth: 1, borderTopColor: '#EEE' },
-  retakeButton: { backgroundColor: '#FF6B6B', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 25, minWidth: 130, alignItems: 'center' },
-  saveButton: { backgroundColor: '#4ECDC4', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 25, minWidth: 130, alignItems: 'center' },
-  disabledButton: { backgroundColor: '#CFD8DC' },
+  buttonContainer: { width: '100%', alignItems: 'center', gap: 16 },
+  cameraButton: { backgroundColor: '#007AFF', paddingVertical: 14, paddingHorizontal: 30, borderRadius: 25, width: '70%', alignItems: 'center', marginBottom: 10, elevation: 3 },
+  cameraButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  galleryButton: { paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, borderWidth: 1.5, borderColor: '#007AFF', width: '70%', alignItems: 'center' },
+  galleryButtonText: { color: '#007AFF', fontSize: 16, fontWeight: '600' },
+  previewContainer: { flex: 1, backgroundColor: '#000' },
+  previewImage: { flex: 1, width: '100%', resizeMode: 'contain' },
+  actionButtons: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)', paddingVertical: 20 },
+  retakeButton: { backgroundColor: '#FF6B6B', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 25, minWidth: 120, alignItems: 'center' },
+  saveButton: { backgroundColor: '#4ECDC4', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 25, minWidth: 120, alignItems: 'center' },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 10 },
+  loadingText: { color: '#fff', marginTop: 10, fontSize: 16 },
+  
+  // MODAL
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 15, textAlign: 'center' },
+  label: { fontSize: 12, color: '#666', marginBottom: 4, fontWeight: '600' },
+  input: { backgroundColor: '#F5F5F5', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 16, color: '#333' },
+  row: { flexDirection: 'row' },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  catChip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F0F0', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, marginBottom: 6, borderWidth: 1, borderColor: '#eee' },
+  catChipSelected: { backgroundColor: '#E3F2FD', borderWidth: 1, borderColor: '#2196F3' },
+  catText: { fontSize: 12, color: '#333', marginLeft: 4 },
+  catTextSelected: { color: '#2196F3', fontWeight: 'bold' },
+  modalButtons: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  cancelBtn: { flex: 1, padding: 15, borderRadius: 12, backgroundColor: '#FFEBEE', alignItems: 'center' },
+  cancelText: { color: '#D32F2F', fontWeight: 'bold' },
+  confirmBtn: { flex: 1, padding: 15, borderRadius: 12, backgroundColor: '#4ECDC4', alignItems: 'center' },
+  confirmText: { color: '#fff', fontWeight: 'bold' },
 });
 
 export default CameraScreen;
