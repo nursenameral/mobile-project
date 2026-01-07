@@ -42,14 +42,13 @@ const isInvoiceCategory = (catId: string) => {
 };
 
 interface AzureResult {
-  faturaNo?: string;
   tarih?: string;
   saat?: string;
   toplamTutar?: string;
   satici?: string;
-  vergi?: string;
   success: boolean;
   message?: string;
+  fullText?: string;
 }
 
 const CameraScreen: React.FC = ({ navigation }: any) => {
@@ -171,7 +170,7 @@ const CameraScreen: React.FC = ({ navigation }: any) => {
   }, [capturedPhoto]));
 
   // --- ANALİZ ---
-  const handleAnalyze = async () => {
+const handleAnalyze = async () => {
     if (!capturedBase64) { Alert.alert("Hata", "Görüntü yok."); return; }
     try {
       setIsAnalyzing(true);
@@ -179,27 +178,37 @@ const CameraScreen: React.FC = ({ navigation }: any) => {
 
       if (result.success) {
         const satici = result.satici || "";
+        const fullText = result.fullText || "";
         
         // 1. Önce Fatura Kontrolü
-        let detectedCat = detectInvoiceCategory(satici);
-        
+        let detectedCat = detectInvoiceCategory(satici, fullText);
+
         // 2. Fatura değilse Fiş Kontrolü
         if (!detectedCat) {
             detectedCat = detectCategory(satici);
         }
+        // 3. AI Karar Mekanizması:
+        // Eğer kategori hiç bulunamadıysa (null/undefined/boş) VEYA 'diğer' bulunduysa
+        // VE (satıcı ismi var VEYA metin uzunluğu 10'dan büyükse) AI'ya sor.
+        const shouldAskAI = (!detectedCat || detectedCat === 'diğer') && 
+                            (satici.length > 1 || fullText.length > 10);
 
-        // 3. Hiçbiri değilse Backend AI (Gemini) Sor (Sadece fişler için varsayıyoruz veya genel sorulabilir)
-        if (!detectedCat && satici.length > 2) {
+        if (shouldAskAI) {
              try {
+                console.log("🤖 AI Devreye giriyor...");
                 const token = await AsyncStorage.getItem('userToken');
                 if (token) {
-                    const aiRes = await predictCategory(token, satici);
-                    if (aiRes?.category) detectedCat = aiRes.category;
+                    // Backend -> Groq
+                    const aiRes = await predictCategory(token, satici, fullText);
+                    
+                    // AI 'diğer' dışında anlamlı bir şey bulduysa onu kullan
+                    if (aiRes?.category && aiRes.category !== 'diğer') {
+                        detectedCat = aiRes.category;
+                    }
                 }
-            } catch (e) { console.log("AI hatası"); }
+            } catch (e) { console.log("AI hatası", e); }
         }
 
-        // Eğer hala bulunamadıysa varsayılan 'diğer' (Fiş)
         const finalCat = detectedCat || 'diğer';
 
         setEditData({
@@ -207,7 +216,7 @@ const CameraScreen: React.FC = ({ navigation }: any) => {
             tutar: parseAmount(result.toplamTutar).toString(),
             tarih: result.tarih || "", 
             saat: result.saat || "",   
-            son_odeme: result.tarih || "", // Faturalar için Azure genelde tarihi okur, bunu son ödeme olarak öneriyoruz
+            son_odeme: result.tarih || "", 
             tur: finalCat
         });
         setModalVisible(true);
@@ -223,7 +232,6 @@ const CameraScreen: React.FC = ({ navigation }: any) => {
   };
 
   // --- KAYDETME (DİNAMİK) ---
-// --- KAYDETME (DİNAMİK) ---
   const handleSave = async () => {
       if (!editData.baslik || !editData.tutar) {
           Alert.alert("Eksik", "Başlık ve tutar zorunludur.");
@@ -234,10 +242,6 @@ const CameraScreen: React.FC = ({ navigation }: any) => {
           const token = await AsyncStorage.getItem('userToken');
           if (!token) { Alert.alert("Hata", "Oturum süreniz dolmuş."); return; }
 
-          // Tutarı sayıya çevir (Backend sayı bekliyor)
-          // Virgülü noktaya çevirip parse ediyoruz.
-          const numericTutar = parseFloat(editData.tutar.replace(',', '.'));
-
           // Hangi türde kaydedeceğimize karar veriyoruz
           if (isInvoiceCategory(editData.tur)) {
               // --- FATURA OLARAK KAYDET ---
@@ -245,19 +249,12 @@ const CameraScreen: React.FC = ({ navigation }: any) => {
 
               await createInvoice(token, {
                   baslik: editData.baslik,
-                  tutar: numericTutar,
+                  tutar: parseFloat(editData.tutar),
                   son_odeme_tarihi: finalDueDate,
-                  tur: editData.tur 
+                  tur: editData.tur as any
               });
-              
-              Alert.alert("Başarılı", "Fatura kaydedildi!", [
-                  { text: "Tamam", onPress: () => {
-                      setModalVisible(false);
-                      navigation.navigate('Invoice'); 
-                      setCapturedPhoto(null); 
-                      setCapturedBase64(null);
-                  }}
-              ]);
+              Alert.alert("Başarılı", "Fatura kaydedildi!");
+              navigation.navigate('Invoice'); 
 
           } else {
               // --- FİŞ OLARAK KAYDET ---
@@ -266,29 +263,26 @@ const CameraScreen: React.FC = ({ navigation }: any) => {
 
               await createReceipt(token, {
                   baslik: editData.baslik,
-                  tutar: numericTutar, // Sayı olarak gönderiyoruz
+                  tutar: parseFloat(editData.tutar),
                   tarih: finalDate,
                   saat: finalTime,
-                  tur: editData.tur 
+                  tur: editData.tur as any
               });
-
-              Alert.alert("Başarılı", "Fiş kaydedildi!", [
-                  { text: "Tamam", onPress: () => {
-                      setModalVisible(false);
-                      navigation.navigate('Receipts');
-                      setCapturedPhoto(null); 
-                      setCapturedBase64(null);
-                  }}
-              ]);
+              Alert.alert("Başarılı", "Fiş kaydedildi!");
+              navigation.navigate('Receipts');
           }
 
+          setModalVisible(false);
+          setCapturedPhoto(null); 
+          setCapturedBase64(null);
+
       } catch (error) {
-          console.log(error);
           Alert.alert("Hata", error instanceof Error ? error.message : "Kaydetme başarısız.");
       } finally {
           setIsSaving(false);
       }
   };
+
   // --- RENDER ---
   const isCurrentInvoice = isInvoiceCategory(editData.tur);
 

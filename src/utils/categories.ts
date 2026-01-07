@@ -6,7 +6,7 @@ export const RECEIPT_CATEGORIES = [
   { id: 'sağlık', label: 'Sağlık', icon: '💊', keywords: ['eczane', 'hastane', 'medikal', 'diş', 'doktor', 'optik', 'laboratuvar', 'sağlık'] },
   { id: 'ulaşım', label: 'Ulaşım', icon: '🚗', keywords: ['petrol', 'shell', 'opet', 'bp', 'taksi', 'bilet', 'otopark', 'uber', 'martı', 'moov', 'tcd.d', 'yolculuk', 'akaryakıt'] },
   { id: 'eğlence', label: 'Eğlence', icon: '🎉', keywords: ['sinema', 'tiyatro', 'oyun', 'netflix', 'spotify', 'etkinlik', 'biletix', 'konser', 'müze'] },
-  { id: 'giyim', label: 'Giyim', icon: '👕', keywords: ['zara', 'lcw', 'koton', 'giyim', 'ayakkabı', 'boyner', 'hm', 'mango', 'nike', 'adidas', 'sport'] },
+  { id: 'giyim', label: 'Giyim', icon: '👕', keywords: ['zara', 'lcw', 'koton', 'giyim', 'ayakkabı', 'mağaza', 'boyner', 'hm', 'mango', 'nike', 'adidas', 'sport'] },
   { id: 'diğer', label: 'Diğer', icon: '📦', keywords: [] },
 ];
 
@@ -17,16 +17,25 @@ export const INVOICE_CATEGORIES = [
   { id: 'dogalgaz', label: 'Doğalgaz', icon: '🔥', keywords: ['gaz', 'igdaş', 'başkentgaz', 'bursagaz', 'izmirgaz', 'aksa'] },
 ];
 
-// Fiş Kategorisi Tahmini (Bulamazsa null döner)
-export const detectCategory = (vendorName: string | undefined): string | null => {
-  if (!vendorName) return null;
-  const lowerVendor = vendorName.toLowerCase();
+// Fiş Kategorisi Tahmini 
+export const detectCategory = (vendorName: string | undefined, fullText: string = ""): string | null => {
+  const lowerVendor = vendorName ? vendorName.toLowerCase() : "";
+  const lowerText = fullText.toLowerCase();
 
   for (const cat of RECEIPT_CATEGORIES) {
-    if (cat.keywords.some(keyword => lowerVendor.includes(keyword))) {
+    // 1. Önce Satıcı İsmine Bak 
+    if (lowerVendor && cat.keywords.some(keyword => lowerVendor.includes(keyword))) {
       return cat.id;
     }
   }
+
+  // 2. Satıcıda bulamadıysak, Fişin İçeriğine Bak 
+  for (const cat of RECEIPT_CATEGORIES) {
+     if (cat.keywords.some(keyword => lowerText.includes(keyword))) {
+       return cat.id;
+     }
+  }
+
   return null;
 };
 
@@ -41,35 +50,4 @@ export const detectInvoiceCategory = (vendorName: string | undefined): string | 
     }
   }
   return null;
-};
-
-export const createInvoice = async (
-  token: string, 
-  data: { baslik: string; tutar: number; tur: 'elektrik' | 'su' | 'dogalgaz'; son_odeme_tarihi: string }
-): Promise<ApiResponse<any>> => {
-  try {
-    const response = await fetch(`${BASE_URL}/invoices`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(data),
-    });
-
-    const resData = await response.json();
-    
-    if (!response.ok) {
-      if ((resData as any)?.errors) {
-        const errorMessages = Object.values((resData as any).errors).flat();
-        throw new Error((errorMessages as string[]).join(', '));
-      }
-      throw new Error(resData.message || 'Fatura oluşturulamadı');
-    }
-    
-    return resData;
-  } catch (error) {
-    throw new Error(error instanceof Error ? error.message : 'Ağ hatası oluştu');
-  }
 };

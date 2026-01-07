@@ -489,12 +489,9 @@ export const createInvoice = async (
   }
 };
 
-// Kategori Tahmini (AI)
-export const predictCategory = async (token: string, merchantName: string): Promise<{ success: boolean; category: string }> => {
+// Kategori Tahmini
+export const predictCategory = async (token: string, merchantName: string, receiptText: string = ""): Promise<{ success: boolean; category: string }> => {
   try {
-    // Backend'de bu endpoint henüz yoksa varsayılan döner
-    // Eğer backend'e eklediyseniz fetch kısmını açabilirsiniz.
-    
     const response = await fetch(`${BASE_URL}/predict-category`, {
       method: 'POST',
       headers: {
@@ -502,12 +499,18 @@ export const predictCategory = async (token: string, merchantName: string): Prom
         'Accept': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ merchant_name: merchantName }),
+      body: JSON.stringify({ 
+          merchant_name: merchantName,
+          receipt_text: receiptText 
+      }),
     });
-    return await response.json();
     
-    return { success: false, category: 'diğer' }; 
+    // Eğer backend kapalıysa veya hata dönerse json parse hatası almamak için kontrol
+    if (!response.ok) return { success: false, category: 'diğer' };
+
+    return await response.json();
   } catch (error) {
+    console.log("AI API Hatası:", error);
     return { success: false, category: 'diğer' };
   }
 };
