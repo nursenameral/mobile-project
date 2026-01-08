@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Receipt;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Http; // HTTP istemcisi için
+use Illuminate\Support\Facades\Log;
 
 class ReceiptController extends Controller
 {
@@ -262,5 +264,145 @@ class ReceiptController extends Controller
                 'genel_adet' => $summary->sum('adet'),
             ]
         ], 200);
+    }
+    /**
+     * Groq AI ile Kategori Tahmini
+     */
+public function predictCategory(Request $request)
+    {
+        // 1. Girdi Kontrolü
+        $validator = Validator::make($request->all(), [
+            'merchant_name' => 'nullable|string', 
+            'receipt_text'  => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'category' => 'diğer']);
+        }
+
+        $merchant = $request->input('merchant_name') ?? '';
+        $fullText = $request->input('receipt_text') ?? '';
+        $apiKey = env('GROQ_API_KEY');
+
+        // ---------------------------------------------------------
+        // ADIM 1: YEREL KONTROL (Hızlı ve Bedava)
+        // ---------------------------------------------------------
+        $categories = [
+            'gıda' => ['market', 'bakkal', 'fırın', 'cafe', 'restoran', 'migros', 'bim', 'a101', 'şok', 'starbucks', 'burger', 'simit', 'yemek', 'lokanta'],
+            'sağlık' => ['eczane', 'hastane', 'medikal', 'diş', 'doktor', 'optik', 'laboratuvar'],
+            'ulaşım' => ['petrol', 'shell', 'opet', 'bp', 'taksi', 'bilet', 'otopark', 'uber', 'martı', 'moov', 'akaryakıt'],
+            'eğlence' => ['sinema', 'tiyatro', 'biletix', 'netflix', 'spotify', 'oyun', 'konser', 'müze'],
+            'giyim' => ['giyim', 'ayakkabı', 'mağaza', 'butik', 'tekstil', 'zara', 'lcw', 'koton', 'boyner', 'hm', 'nike', 'adidas'],
+            'elektrik' => ['elektrik', 'bedaş', 'enerjisa', 'gediz', 'ck', 'akdeniz', 'toroslar', 'sedaş'],
+            'su' => ['su', 'iski', 'aski', 'izsu', 'buski', 'kaski'],
+            'dogalgaz' => ['gaz', 'doğalgaz', 'igdaş', 'başkentgaz', 'bursagaz', 'izmirgaz', 'aksa']
+        ];
+
+        $lowerMerchant = mb_strtolower($merchant, 'UTF-8');
+        
+        if (!empty($lowerMerchant)) {
+            foreach ($categories as $cat => $keywords) {
+                foreach ($keywords as $kw) {
+                    if (str_contains($lowerMerchant, $kw)) {
+                        return response()->json(['success' => true, 'category' => $cat, 'source' => 'local_rule']);
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------
+        // ADIM 2: GROQ AI ANALİZİ (JSON Modu ile Güçlendirilmiş)
+        // ---------------------------------------------------------
+        if (!$apiKey) {
+            return response()->json(['success' => true, 'category' => 'diğer']);
+        }
+
+        // Metni kısalt (Token tasarrufu)
+        $analysisText = !empty($fullText) ? mb_substr($fullText, 0, 1000) : $merchant;
+
+        try {
+            // 1. Önce AI'ya ne gönderdiğimizi görelim (Boş gidiyor olabilir mi?)
+            Log::info("📤 Groq'a Giden Metin ($analysisText)");
+
+            // Model seçimi: Llama 3 bazen JSON modunda tutukluk yapabilir, Mixtral daha sağlamdır.
+            // Şimdilik Llama 3 kalsın ama response_format'ı kaldırıp manuel JSON isteyeceğiz.
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $apiKey,
+                'Content-Type' => 'application/json',
+            ])->post('https://api.groq.com/openai/v1/chat/completions', [
+                    'model' => 'llama-3.3-70b-versatile',
+                    'messages' => [
+                    [
+                        'role' => 'system', 
+                        'content' => "Sen bir API asistanısın. Verilen fiş metnini analiz et. Kategori şunlardan biri olmalı: [gıda, sağlık, ulaşım, eğlence, giyim, elektrik, su, dogalgaz, diğer]. \nCevap olarak sadece saf JSON ver. Markdown, ```json``` etiketi veya ek açıklama kullanma. Örnek format: {\"category\": \"gıda\", \"reason\": \"ekmek var\"}"
+                    ],
+                    [
+                        'role' => 'user', 
+                        'content' => "Fiş metni: $analysisText"
+                    ]
+                ],
+                'temperature' => 0.1,
+                // 'response_format' => ['type' => 'json_object'] // 👈 BUNU GEÇİCİ OLARAK KAPATTIK (Bazı modellerde hata verdiriyor)
+            ]);
+
+            $jsonResponse = $response->json();
+
+            // 2. Groq'tan dönen TÜM yanıtı loglayalım (Hata mesajı var mı?)
+            Log::info("🔍 Groq Tam Yanıt:", $jsonResponse);
+
+            if (isset($jsonResponse['error'])) {
+                Log::error("❌ Groq API Hatası: " . json_encode($jsonResponse['error']));
+                return response()->json(['success' => true, 'category' => 'diğer', 'reason' => 'API Hatası']);
+            }
+
+            $rawContent = $jsonResponse['choices'][0]['message']['content'] ?? null;
+
+            if (!$rawContent) {
+                Log::error("❌ Groq içerik döndürmedi (Content null).");
+                return response()->json(['success' => true, 'category' => 'diğer', 'reason' => 'Boş yanıt']);
+            }
+
+            Log::info("🤖 Groq Ham İçerik: " . $rawContent);
+
+            // Bazen AI ```json ... ``` etiketiyle döner, onu temizleyelim
+            $cleanJson = str_replace(['```json', '```'], '', $rawContent);
+            
+            $parsedContent = json_decode($cleanJson, true);
+            
+            // Eğer JSON parse edilemezse
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::warning("⚠️ JSON Parse Hatası. Ham metin kullanılıyor.");
+                // JSON bozuksa, basitçe metin içinde kategori arayalım
+                $aiCategory = 'diğer';
+                foreach ($categories as $cat => $val) {
+                    if (str_contains(mb_strtolower($cleanJson), $cat)) {
+                        $aiCategory = $cat;
+                        break;
+                    }
+                }
+                $reason = "JSON parse edilemedi, metin tarandı.";
+            } else {
+                $aiCategory = $parsedContent['category'] ?? 'diğer';
+                $reason = $parsedContent['reason'] ?? 'Sebep yok';
+            }
+
+            // Temizlik ve Validasyon
+            $aiCategory = trim(mb_strtolower($aiCategory, 'UTF-8'));
+            $valid = array_keys($categories);
+            $valid[] = 'diğer';
+            
+            if (!in_array($aiCategory, $valid)) $aiCategory = 'diğer';
+
+            return response()->json([
+                'success' => true, 
+                'category' => $aiCategory,
+                'reason' => $reason,
+                'source' => 'groq_ai_mixtral'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("❌ Kritik Hata: " . $e->getMessage());
+            return response()->json(['success' => true, 'category' => 'diğer']);
+        }
     }
 }

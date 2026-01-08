@@ -34,4 +34,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/invoices/{id}/pay', [InvoiceController::class, 'pay']); // Fatura öde
     Route::get('/invoices/unpaid', [InvoiceController::class, 'getUnpaid']); // Ödenmemiş faturaları getir
     Route::get('/invoices/last-two-by-type', [InvoiceController::class, 'getLastTwoByType']); // Her türden son 2 fatura
+
+    Route::post('/predict-category', [ReceiptController::class, 'predictCategory']); // Kategori tahmini
 });
