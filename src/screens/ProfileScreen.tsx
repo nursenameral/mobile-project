@@ -13,7 +13,6 @@ const ProfileScreen: React.FC = () => {
   const [token, setToken] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
   const [resetVisible, setResetVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -128,14 +127,6 @@ const ProfileScreen: React.FC = () => {
                   placeholder="Adınız"
                 />
 
-                <AppTextInput
-                  label="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  isPassword
-                  placeholder="Change the password"
-                />
-
                 <View style={styles.rowActions}>
                   <AppButton
                     title="Reset Pass"
@@ -219,7 +210,6 @@ const ProfileScreen: React.FC = () => {
                       setCurrentPassword('');
                       setNewPassword('');
                       setConfirmPassword('');
-                      setPassword('');
                     } catch (err) {
                       Alert.alert('Hata', err instanceof Error ? err.message : 'İşlem başarısız');
                     } finally {
